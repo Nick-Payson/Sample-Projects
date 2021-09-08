@@ -1,0 +1,111 @@
+import numpy as np
+
+# Generate labeled points
+def gen_points_and_labels(center_x, center_y, frame_size, n):
+  np.random.seed(2810)
+  center = [center_x, center_y]
+  positives = np.random.randn(n,2) + np.tile([center_x, center_y], (n, 1))
+  negs = []
+  while not negs or len(negs) < n:
+    new = np.random.randn(1,2) * frame_size
+    if np.linalg.norm(new-center) > 2:
+      negs.extend(new)
+  negs = np.array(negs)
+  labels = np.concatenate((np.ones((n,1)),np.zeros((n,1))), axis=0)
+  return positives, negs, labels
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+def draw_circle(x,y,radius):
+  figure, axes = plt.subplots()
+  my_circle = plt.Circle((x, y), radius,fill=False)
+  axes.set_aspect(1)
+  axes.add_artist(my_circle)
+
+# Draw initial hypothesis and color-coded points
+draw_circle(-10,-10,20)
+positives, negs, labels = gen_points_and_labels(2,2,8,50)
+plt.plot(positives[:,0],positives[:,1],'ro')
+plt.plot(negs[:,0],negs[:,1],'o')
+
+# point is a 1x2 array [x, y]; returns boolean (True if in circle) and f(x,y)
+def circle_classify(x_0, y_0, r, point):
+  score = (x_0 - point[0]) ** 2 + (y_0 - point[1]) ** 2 - r ** 2
+  return score <= 0, score
+
+# Return a gradient vector, gradient of loss with respect to the 3 parameters
+def get_gradient(err, x_0, x, y_0, y, r):
+  #print(err)
+  x2 = 2 * err * 2 * (x - x_0)
+  y2 = 2 * err * 2 * (y - y_0)
+  r2 = 2 * err * -2 * r
+  return  np.array([x2,y2,r2])
+
+learning_rate = 0.000012 # was .0001
+
+# Arguments are initial values of x_0, y_0, r,
+# the three return values from gen_points_and_labels above, and a number of iterations
+# (which will be 400 but can be reduced for debugging)
+def gradient_descent(x_0, y_0, r, positives, negatives, labels, iterations):
+  # Note that we could make this gradient descent more robust by randomly shuffling the
+  # points, but that's not necessary for this assignment.
+  examples = np.concatenate((positives, negatives), axis=0)
+  #print(examples)
+
+
+  for t in range(iterations): # was iterations, change back later
+    #print(str(x_0) + " " + str(y_0) + " " + str(r))
+    correct = 0
+    #print(t)
+    nextX = 0
+    nextY = 0
+    nextR = 0
+    
+    for i in range(len(examples)):
+      point = [examples[i][0], examples[i][1]]
+      #print(point)
+      isIn = circle_classify(x_0, y_0, r, [examples[i][0], examples[i][1]])[0]
+      shouldBeIn = i < 50
+      err = circle_classify(x_0, y_0, r, [examples[i][0], examples[i][1]])[1]
+      #print(str(err) + "  " + str(isIn))
+      # TODO - "classify" as in or out of circle, compare to label,
+      # if wrong do gradient descent step
+      if ((not isIn) and shouldBeIn):
+        vec = -1 * learning_rate * get_gradient(err, x_0, examples[i][0], y_0, examples[i][1], r)
+
+        nextX = nextX + vec[0]
+        nextY = nextY + vec[1]
+        nextR = nextR + vec[2]
+      elif (isIn and (not shouldBeIn)):
+        vec = learning_rate * get_gradient( -1 * err, x_0, examples[i][0], y_0, examples[i][1], r)
+        nextX = nextX + vec[0]
+        nextY = nextY + vec[1]
+        nextR = nextR + vec[2]   
+        #print(str(x_0) + " " + str(y_0) + " " + str(r))
+      elif (isIn and shouldBeIn):
+        vec = learning_rate * get_gradient( - 1 * err, x_0, examples[i][0], y_0, examples[i][1], r)
+        nextX = nextX + vec[0]
+        nextY = nextY + vec[1]
+        correct = correct + 1
+      else:
+        correct = correct + 1
+    x_0 = x_0 + nextX
+    y_0 = y_0 + nextY
+    r = r + nextR
+    #print(str(correct) + " outside " + str(nextX) + " " + str(nextY) + " " + str(nextR))
+    
+    if t % 20 == 0:
+      report_progress(x_0, y_0, r, correct, len(examples))
+  return x_0, y_0, r
+
+def report_progress(x_0, y_0, r, correct, n):
+  draw_circle(x_0, y_0, r)
+  plt.plot(positives[:,0],positives[:,1],marker = 'o', color = "red", linestyle = "none")
+  plt.plot(negs[:,0],negs[:,1],marker = 'o', color = "blue", linestyle = "none")
+  print(x_0,y_0,r)
+  print(correct/n)
+
+endx, endy, endr = gradient_descent(-10,-10,20,positives,negs,labels,400)
+print(endx, endy, endr)
+
